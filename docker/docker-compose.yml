@@ -435,6 +435,11 @@ services:
     container_name: supabase-edge-functions
     image: supabase/edge-runtime:v1.74.0
     restart: unless-stopped
+      WEBHOOK_URL_OVERRIDE: https://distances-tracked-aimed-treo.trycloudflare.com/functions/v1/webhook-wsender
+      WAHA_BASE_URL: https://waha.buildstart.io/
+      WAHA_API_KEY: 9fe5a6231e7c444ca63bde0b3ba966ee
+      BOT_API_KEY: 7b02ee4ab25ba1529bd11aef41484a5145c261fde14273e5050c2efe8003c965
+      AI_GENERATE_URL: https://ykzefldgpynswokdijur.supabase.co/functions/v1/ai-generate
     volumes:
       - ./volumes/functions:/home/deno/functions:z
       - deno-cache:/root/.cache/deno

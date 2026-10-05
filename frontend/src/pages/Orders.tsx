@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -18,6 +19,7 @@ interface Order {
   id: string;
   customer_name: string;
   customer_phone: string;
+  customer_phone_2: string | null;
   whatsapp_phone: string | null;
   district: string | null;
   customer_address: string | null;
@@ -27,9 +29,27 @@ interface Order {
   status: string;
   total_amount: number;
   created_at: string;
+  deposit_required: boolean;
+  deposit_amount: number;
+  payment_slip_url: string | null;
+  payment_verification_status: string;
+  delivery_status: string;
+  lead_source: string;
+  followup_status: string;
+  manual_handoff_status: boolean;
 }
 
 const statusColors: Record<string, string> = {
+  'New': "bg-yellow-100 text-yellow-800",
+  'Confirmed': "bg-blue-100 text-blue-800",
+  'Deposit Pending': "bg-orange-100 text-orange-800",
+  'Slip Received': "bg-blue-100 text-blue-800",
+  'Deposit Verified': "bg-green-100 text-green-800",
+  'Manual Processing': "bg-purple-100 text-purple-800",
+  'Out for Delivery': "bg-indigo-100 text-indigo-800",
+  'Delivered': "bg-green-100 text-green-800",
+  'Completed': "bg-emerald-100 text-emerald-800",
+  'Cancelled': "bg-red-100 text-red-800",
   pending: "bg-yellow-100 text-yellow-800",
   processing: "bg-blue-100 text-blue-800",
   shipped: "bg-purple-100 text-purple-800",
@@ -38,11 +58,16 @@ const statusColors: Record<string, string> = {
 };
 
 const statusOptions = [
-  { value: "pending", label: "Pending" },
-  { value: "processing", label: "Processing" },
-  { value: "shipped", label: "Shipped" },
-  { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "New", label: "New" },
+  { value: "Confirmed", label: "Confirmed" },
+  { value: "Deposit Pending", label: "Deposit Pending" },
+  { value: "Slip Received", label: "Slip Received" },
+  { value: "Deposit Verified", label: "Deposit Verified" },
+  { value: "Manual Processing", label: "Manual Processing" },
+  { value: "Out for Delivery", label: "Out for Delivery" },
+  { value: "Delivered", label: "Delivered" },
+  { value: "Completed", label: "Completed" },
+  { value: "Cancelled", label: "Cancelled" },
 ];
 
 export default function Orders() {
@@ -431,23 +456,64 @@ export default function Orders() {
 
                 {/* Status Update */}
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t">
-                  <div className="space-y-1">
-                    <h4 className="font-medium text-sm">Update Status</h4>
-                    <Select
-                      value={selectedOrder.status}
-                      onValueChange={(value) => updateOrderStatus(selectedOrder.id, value)}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statusOptions.map((status) => (
-                          <SelectItem key={status.value} value={status.value}>
-                            {status.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="flex flex-col gap-4 w-full max-w-[200px]">
+                    <div className="space-y-1">
+                      <h4 className="font-medium text-sm">Update Status</h4>
+                      <Select
+                        value={selectedOrder.status}
+                        onValueChange={(value) => updateOrderStatus(selectedOrder.id, value)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statusOptions.map((status) => (
+                            <SelectItem key={status.value} value={status.value}>
+                              {status.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="font-medium text-sm">Payment Status</h4>
+                      <Select
+                        value={selectedOrder.payment_verification_status || 'pending'}
+                        onValueChange={async (value) => {
+                          const { error } = await supabase.from('orders').update({ payment_verification_status: value }).eq('id', selectedOrder.id);
+                          if (!error) {
+                            setSelectedOrder({...selectedOrder, payment_verification_status: value});
+                            setOrders(orders.map(o => o.id === selectedOrder.id ? {...o, payment_verification_status: value} : o));
+                            toast({ title: 'Payment status updated' });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="verified">Verified</SelectItem>
+                          <SelectItem value="failed">Failed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1 flex items-center justify-between gap-2 mt-2">
+                      <h4 className="font-medium text-sm">Manual Handoff</h4>
+                      <Switch 
+                        checked={selectedOrder.manual_handoff_status || false}
+                        onCheckedChange={async (checked) => {
+                          const { error } = await supabase.from('orders').update({ manual_handoff_status: checked }).eq('id', selectedOrder.id);
+                          if (!error) {
+                            setSelectedOrder({...selectedOrder, manual_handoff_status: checked});
+                            setOrders(orders.map(o => o.id === selectedOrder.id ? {...o, manual_handoff_status: checked} : o));
+                            toast({ title: 'Handoff status updated' });
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Button

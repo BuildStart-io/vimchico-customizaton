@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRole } from "@/hooks/useRole";
 import { useStaffAccess } from "@/hooks/useStaffAccess";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { 
   LayoutDashboard, 
   Package, 

@@ -73,6 +73,14 @@ export default function Settings() {
   ]);
 
   // Auto Responses
+  
+  const [depositRules, setDepositRules] = useState({
+    single_product_deposit: 0,
+    two_product_deposit: 500,
+    three_product_deposit: 1000
+  });
+  const depositRulesRef = useRef(depositRules);
+  depositRulesRef.current = depositRules;
   const [autoResponsesEnabled, setAutoResponsesEnabled] = useState(true);
 
   // Delivery Settings
@@ -103,7 +111,7 @@ export default function Settings() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [_settingWebhook, setSettingWebhook] = useState<string | null>(null);
 
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-wsender`;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/webhook-wsender-vimchico-customization`;
 
   const getFunctionAuthHeaders = useCallback(async (includeJson = false) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -168,6 +176,16 @@ export default function Settings() {
           case "auto_responses":
             setAutoResponsesEnabled((setting.value as any)?.enabled ?? true);
             break;
+          case "deposit_rules": {
+            const dVal = setting.value as any;
+            setDepositRules({
+              single_product_deposit: dVal?.single_product_deposit ?? 0,
+              two_product_deposit: dVal?.two_product_deposit ?? 500,
+              three_product_deposit: dVal?.three_product_deposit ?? 1000
+            });
+            break;
+          }
+
           case "order_notifications":
             setNotificationPhone((setting.value as any)?.phone || "");
             break;
@@ -222,7 +240,7 @@ export default function Settings() {
 
       // Fetch all sessions from Wasender API then filter to only user's
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions?action=list-sessions`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization?action=list-sessions`,
         {
           headers: await getFunctionAuthHeaders(),
         }
@@ -256,7 +274,7 @@ export default function Settings() {
     setQrCode(null);
     setQrImage(null);
     setSelectedSessionId(sessionId);
-    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions`;
+    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization`;
 
     try {
       const authHeaders = await getFunctionAuthHeaders();
@@ -310,7 +328,7 @@ export default function Settings() {
     setCreatingSession(true);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions?action=create-session`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization?action=create-session`,
         {
           method: "POST",
           headers: await getFunctionAuthHeaders(true),
@@ -338,7 +356,7 @@ export default function Settings() {
         let sessionApiKey: string | null = null;
         try {
           const detailsRes = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions?action=session-details&sessionId=${newSession.id}`,
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization?action=session-details&sessionId=${newSession.id}`,
             { headers: await getFunctionAuthHeaders() }
           );
           if (detailsRes.ok) {
@@ -375,7 +393,7 @@ export default function Settings() {
     setSettingWebhook(sessionId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions?action=set-webhook&sessionId=${sessionId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization?action=set-webhook&sessionId=${sessionId}`,
         {
           method: "POST",
           headers: await getFunctionAuthHeaders(true),
@@ -402,7 +420,7 @@ export default function Settings() {
     setDeletingSessionId(sessionId);
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions?action=delete-session&sessionId=${sessionId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/wsender-sessions-vimchico-customization?action=delete-session&sessionId=${sessionId}`,
         {
           method: "DELETE",
           headers: await getFunctionAuthHeaders(),
@@ -548,6 +566,10 @@ export default function Settings() {
     });
   };
 
+  
+  const handleSaveDepositRules = () => {
+    saveSettings("deposit_rules", depositRulesRef.current);
+  };
   const handleSaveAutoResponses = () => {
     saveSettings("auto_responses", { enabled: autoResponsesEnabled });
   };
@@ -626,6 +648,7 @@ export default function Settings() {
             <TabsTrigger value="payment" className="flex-1 sm:flex-initial">Payment</TabsTrigger>
             <TabsTrigger value="delivery" className="flex-1 sm:flex-initial">Delivery</TabsTrigger>
             <TabsTrigger value="staff" className="flex-1 sm:flex-initial">Staff</TabsTrigger>
+            <TabsTrigger value="deposit" className="flex-1 sm:flex-initial">Deposit Rules</TabsTrigger>
           </TabsList>
 
           {/* WhatsApp Connection Tab */}
@@ -830,7 +853,7 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
-              </CardContent>
+  </CardContent>
             </Card>
           </TabsContent>
 
@@ -1320,7 +1343,46 @@ export default function Settings() {
           <TabsContent value="staff" className="space-y-6">
             <StaffManager />
           </TabsContent>
-
+          <TabsContent value="deposit">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Deposit Configuration</CardTitle>
+                  <CardDescription>Configure the deposit amounts based on the number of ordered products.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label>Single Product Deposit (LKR)</Label>
+                    <Input 
+                      type="number" 
+                      value={depositRules.single_product_deposit} 
+                      onChange={(e) => setDepositRules({...depositRules, single_product_deposit: Number(e.target.value)})} 
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Two Products Deposit (LKR)</Label>
+                    <Input 
+                      type="number" 
+                      value={depositRules.two_product_deposit} 
+                      onChange={(e) => setDepositRules({...depositRules, two_product_deposit: Number(e.target.value)})} 
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Three Products Deposit (LKR)</Label>
+                    <Input 
+                      type="number" 
+                      value={depositRules.three_product_deposit} 
+                      onChange={(e) => setDepositRules({...depositRules, three_product_deposit: Number(e.target.value)})} 
+                    />
+                  </div>
+                <div className="flex justify-end pt-4 mt-4 border-t">
+                  <Button onClick={handleSaveDepositRules} disabled={saving}>
+                    {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Rules
+                  </Button>
+                </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
