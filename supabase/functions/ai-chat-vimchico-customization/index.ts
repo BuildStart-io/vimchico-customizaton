@@ -1,10 +1,4 @@
-
-    const depositRules = settingsRes.data?.find((s: any) => s.key === "deposit_rules")?.value || {
-      single_product_deposit: 0,
-      two_product_deposit: 500,
-      three_product_deposit: 1000
-    };
-  import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -116,14 +110,47 @@ serve(async (req) => {
 
     const ordersLimitReached = (ordersCount || 0) >= ordersLimit;
 
-    const products = productsRes.data || [];
-    const faqs = faqsRes.data || [];
-    const settings = settingsRes.data || [];
+    let products = productsRes.data || [];
+    if (products.length === 0) {
+      const { data: allActiveProducts } = await supabase.from("products").select("*").eq("is_active", true);
+      if (allActiveProducts && allActiveProducts.length > 0) {
+        products = allActiveProducts;
+      }
+    }
 
-    const welcomeMessage = settings.find(s => s.key === "welcome_message")?.value?.text || "Welcome! How can I help you?";
-    const paymentInfo = settings.find(s => s.key === "payment_info")?.value || {};
-    const deliverySettings = settings.find(s => s.key === "delivery_settings")?.value || {};
+    let faqs = faqsRes.data || [];
+    if (faqs.length === 0) {
+      const { data: allActiveFaqs } = await supabase.from("faqs").select("*, products(name)").eq("is_active", true);
+      if (allActiveFaqs && allActiveFaqs.length > 0) {
+        faqs = allActiveFaqs;
+      }
+    }
+
+    let settings = settingsRes.data || [];
+    if (settings.length === 0) {
+      const { data: allSettings } = await supabase.from("settings").select("key, value");
+      if (allSettings && allSettings.length > 0) {
+        settings = allSettings;
+      }
+    }
+
+    const welcomeMessage = settings.find((s: any) => s.key === "welcome_message")?.value?.text || "Welcome! How can I help you?";
+    const paymentInfo = settings.find((s: any) => s.key === "payment_info")?.value || {};
+    const deliverySettings = settings.find((s: any) => s.key === "delivery_settings")?.value || {};
     const freeDeliveryThreshold = deliverySettings.free_delivery_threshold || 0;
+    const depositRules = settings.find((s: any) => s.key === "deposit_rules")?.value || {
+      single_product_deposit: 0,
+      two_product_deposit: 500,
+      three_product_deposit: 1000,
+    };
+
+    const availableProductsList = products.length > 0
+      ? products.map((p: any, i: number) => `${i + 1}. ${p.name} - LKR ${p.price}`).join("\n")
+      : "No products currently available";
+
+    const availableProductNames = products.length > 0
+      ? products.map((p: any) => p.name).join(", ")
+      : "our available products";
 
     const productCatalog = products.map(p => {
       let line = `- ${p.name}: Base price LKR ${p.price} (${p.product_type})`;
@@ -185,17 +212,15 @@ serve(async (req) => {
       .map(msg => `${msg.direction === "inbound" ? "Customer" : "Assistant"}: ${msg.message}`)
       .join("\n");
 
-const systemPrompt = `You are the official WhatsApp Sales Support Agent for Vimchico, an organic agricultural products company.
+const systemPrompt = `You are the official WhatsApp Sales Support Agent for Vimchico, an agricultural products company.
 You speak politely in English or Sinhala depending on the user's language.
 
 Available Products:
-1. Coconut husk pieces
-2. Coconut shell pieces
-3. Compost fertilizer
+${availableProductsList}
 *Free delivery is available for all products!*
 
 Chatbot Flow:
-Step 1 - Welcome: Greet the customer, introduce Vimchico and our main products (Coconut husk pieces, Coconut shell pieces, Compost fertilizer). Mention FREE delivery! Ask which product they are interested in.
+Step 1 - Welcome: Greet the customer, introduce Vimchico and our currently available products (${availableProductNames}). Mention FREE delivery! Ask which product they are interested in.
 Step 2 - Details Collection: If they want to order, strictly collect: 1) Customer Name, 2) Delivery Address, 3) Contact Number 01, and 4) Contact Number 02. DO NOT PROCEED TO SUMMARY UNTIL BOTH NUMBERS ARE COLLECTED.
 Step 3 - Order Summary & Deposit Rules:
 Generate a summary with Name, Product, Quantity, Delivery (Free), Total Value, and Deposit.
@@ -206,7 +231,16 @@ Deposit Rules:
 Step 4 - Payment & Handoff:
 If a deposit is required, provide our bank details and ask for the payment slip. Once they send the slip, or if it's a 1-product COD order, confirm the order and say our staff will manually contact them soon for final delivery arrangements. DO NOT continue sending automated messages after the human handoff!
 
-IMPORTANT GUIDELINES:
+CRITICAL GUIDELINES & BOUNDARIES:
+- STRICT PRODUCT CATALOG BOUNDARY & NO FERTILIZER POLICY:
+  - You MUST strictly follow ONLY the products explicitly mentioned in the PRODUCT CATALOG below (${availableProductNames}).
+  - DO NOT provide any information related to fertilizer or compost.
+  - DO NOT hallucinate that fertilizer, compost, chemical fertilizers, or organic fertilizers exist or are sold by Vimchico.
+  - Vimchico DOES NOT sell, manufacture, or provide fertilizer, compost, or plant nutrients at this time under ANY circumstances.
+  - If a customer asks about fertilizer, compost, organic fertilizer, chemical fertilizer, or any related terms (e.g., "fertilizer thiyenawada?", "compost thiyenawada?", "පොහොර තියෙනවද?", "fertiliser", "pohora", etc.):
+    Politely inform them in their language that Vimchico does NOT sell or provide fertilizer at this time, and direct them to the products we DO currently offer (${availableProductNames}).
+  - NEVER suggest, recommend, or claim that Vimchico offers fertilizer or compost.
+  - If a customer asks about ANY product not listed in the PRODUCT CATALOG below, clearly state that it is not available, and only offer the items from our catalog.
 - Respond in the SAME LANGUAGE the customer uses. Auto-detect their language.
 - KEEP IT SHORT: WhatsApp messages must be concise and scannable. Aim for 2-4 short lines max per response. Never send walls of text.
 - Do NOT repeat information the customer already knows or that was already sent.
